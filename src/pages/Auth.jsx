@@ -122,47 +122,55 @@ export default function Auth({ initialMode }) {
 
         if (signUpError) throw signUpError;
 
-        // If email confirmation is required by Supabase project
-        if (!authData.session) {
-          setSuccessInfo(
-            'Account created! A confirmation link has been sent to your email. Please check your inbox, confirm your email, and then log in.'
-          );
-          setLoading(false);
-          return;
+        let session = authData?.session;
+
+        // If no session returned directly, attempt instant login
+        if (!session) {
+          const { data: signInData } = await supabase.auth.signInWithPassword({
+            email: email.trim(),
+            password,
+          });
+          session = signInData?.session;
         }
 
-        // 2. Invoke RPC create_business(p_name, p_slug, p_timezone)
-        const { error: rpcError } = await supabase.rpc('create_business', {
-          p_name: businessName.trim(),
-          p_slug: slug.trim().toLowerCase(),
-          p_timezone: timezone,
-        });
-
-        if (rpcError) {
-          // If RPC fails (e.g. already has business or RPC permission), check fallback API onboarding
-          const token = authData.session.access_token;
-          const apiRes = await fetch('/api/onboarding', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              name: businessName.trim(),
-              slug: slug.trim().toLowerCase(),
-              timezone,
-            }),
+        if (session) {
+          // 2. Invoke RPC create_business(p_name, p_slug, p_timezone)
+          const { error: rpcError } = await supabase.rpc('create_business', {
+            p_name: businessName.trim(),
+            p_slug: slug.trim().toLowerCase(),
+            p_timezone: timezone,
           });
 
-          if (!apiRes.ok) {
-            const apiJson = await apiRes.json().catch(() => ({}));
-            if (rpcError.message !== 'already_has_business') {
-              throw new Error(apiJson.error?.message || rpcError.message);
+          if (rpcError) {
+            const token = session.access_token;
+            const apiRes = await fetch('/api/onboarding', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                name: businessName.trim(),
+                slug: slug.trim().toLowerCase(),
+                timezone,
+              }),
+            });
+
+            if (!apiRes.ok) {
+              const apiJson = await apiRes.json().catch(() => ({}));
+              if (rpcError.message !== 'already_has_business') {
+                throw new Error(apiJson.error?.message || rpcError.message);
+              }
             }
           }
-        }
 
-        navigate('/dashboard');
+          navigate('/dashboard');
+        } else {
+          // If Supabase project still requires email confirmation in dashboard settings
+          setErrorMsg(
+            'Account created, but instant login requires turning off email confirmation in your Supabase project. In Supabase Dashboard, go to Authentication > Providers > Email, turn OFF "Confirm email", and click Save.'
+          );
+        }
       } else {
         // Login flow
         const { data: loginData, error: signInError } = await supabase.auth.signInWithPassword({
