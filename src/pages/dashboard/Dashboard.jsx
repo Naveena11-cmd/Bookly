@@ -271,11 +271,14 @@ export default function Dashboard() {
       const resolvedBizId = createdBiz?.id || (typeof rpcRes === 'string' ? rpcRes : 'new-business');
 
       if (onboardingForm.phone.trim() && resolvedBizId) {
-        await supabase
-          .from('businesses')
-          .update({ phone: onboardingForm.phone.trim() })
-          .eq('id', resolvedBizId)
-          .catch(() => {});
+        try {
+          await supabase
+            .from('businesses')
+            .update({ phone: onboardingForm.phone.trim() })
+            .eq('id', resolvedBizId);
+        } catch (phoneErr) {
+          console.warn('Could not update business phone:', phoneErr);
+        }
       }
 
       const metaToSave = {
