@@ -1204,7 +1204,7 @@ export default function Dashboard() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h1 className="text-2xl font-black text-slate-900 tracking-tight">Services & Pricing (₹)</h1>
-                <p className="text-sm text-slate-500 mt-0.5">Manage services, slot durations, and pricing in Indian Rupees.</p>
+                <p className="text-sm text-slate-500 mt-0.5">Manage services, slot durations, and pricing.</p>
               </div>
 
               <button
@@ -1418,9 +1418,6 @@ export default function Dashboard() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h1 className="text-2xl font-black text-slate-900 tracking-tight">Client Directory & Stats</h1>
-                <p className="text-sm text-slate-500 mt-0.5">
-                  Live CRM view aggregated from the <code className="text-indigo-600 font-mono text-xs">client_stats</code> database view.
-                </p>
               </div>
 
               {/* Search Bar */}
