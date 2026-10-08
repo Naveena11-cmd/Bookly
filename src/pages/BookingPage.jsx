@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { supabase, isSupabaseConfigured, Business, Service, Provider } from '../lib/supabase';
+import { supabase } from '../lib/supabase.js';
 import {
   Calendar,
   Clock,
@@ -22,40 +22,33 @@ import {
   MapPin,
 } from 'lucide-react';
 
-interface ClientFormData {
-  name: string;
-  email: string;
-  phone: string;
-  notes: string;
-}
-
 const STEPS = [
   { id: 1, title: 'Service', icon: Sparkles },
-  { id: 2, title: 'Provider', icon: User },
+  { id: 2, title: 'Specialist', icon: User },
   { id: 3, title: 'Date & Time', icon: CalendarDays },
   { id: 4, title: 'Your Details', icon: FileText },
 ];
 
 export default function BookingPage() {
-  const { slug } = useParams<{ slug: string }>();
+  const { slug } = useParams();
 
   // Data states
-  const [business, setBusiness] = useState<Business | null>(null);
-  const [services, setServices] = useState<Service[]>([]);
-  const [providers, setProviders] = useState<Provider[]>([]);
+  const [business, setBusiness] = useState(null);
+  const [services, setServices] = useState([]);
+  const [providers, setProviders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState(null);
 
   // Wizard state
   const [currentStep, setCurrentStep] = useState(1);
-  const [selectedService, setSelectedService] = useState<Service | null>(null);
-  const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
+  const [selectedService, setSelectedService] = useState(null);
+  const [selectedProvider, setSelectedProvider] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
     return today.toISOString().split('T')[0];
   });
-  const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
-  const [clientInfo, setClientInfo] = useState<ClientFormData>({
+  const [selectedSlot, setSelectedSlot] = useState(null);
+  const [clientInfo, setClientInfo] = useState({
     name: '',
     email: '',
     phone: '',
@@ -64,13 +57,8 @@ export default function BookingPage() {
 
   // Submission state
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [bookingSuccess, setBookingSuccess] = useState<{
-    id: string;
-    starts_at: string;
-    serviceName: string;
-    providerName: string;
-  } | null>(null);
+  const [submitError, setSubmitError] = useState(null);
+  const [bookingSuccess, setBookingSuccess] = useState(null);
 
   // Fetch business, services & providers by slug
   useEffect(() => {
@@ -80,7 +68,6 @@ export default function BookingPage() {
       setFetchError(null);
 
       try {
-        // Query business by slug from Supabase
         const { data: bizData, error: bizError } = await supabase
           .from('businesses')
           .select('*')
@@ -90,10 +77,9 @@ export default function BookingPage() {
         if (bizError) throw bizError;
 
         let biz = bizData;
-        let svcs: Service[] = [];
-        let provs: Provider[] = [];
+        let svcs = [];
+        let provs = [];
 
-        // If direct query succeeded
         if (biz) {
           const [servicesRes, providersRes] = await Promise.all([
             supabase
@@ -132,9 +118,8 @@ export default function BookingPage() {
         setServices(svcs);
         setProviders(provs);
 
-        // Pre-select service if only 1 exists
         if (svcs.length === 1) setSelectedService(svcs[0]);
-      } catch (err: any) {
+      } catch (err) {
         console.error('Error loading booking data:', err);
         setFetchError(err.message || 'Unable to load booking details.');
       } finally {
@@ -145,17 +130,15 @@ export default function BookingPage() {
     loadBookingData();
   }, [slug]);
 
-  // Generate 30-minute time slots for selected date (9:00 AM to 5:00 PM)
+  // Generate 30-minute time slots for selected date (9:00 AM to 6:00 PM)
   const availableSlots = useMemo(() => {
     if (!selectedDate) return [];
-    const slots: string[] = [];
+    const slots = [];
     const [year, month, day] = selectedDate.split('-').map(Number);
 
-    // Standard business hours: 09:00 to 17:00 in 30-min increments
-    for (let hour = 9; hour < 17; hour++) {
+    for (let hour = 9; hour < 18; hour++) {
       for (let min = 0; min < 60; min += 30) {
         const d = new Date(year, month - 1, day, hour, min, 0);
-        // Exclude past times if date is today
         if (d.getTime() > Date.now()) {
           slots.push(d.toISOString());
         }
@@ -165,7 +148,7 @@ export default function BookingPage() {
   }, [selectedDate]);
 
   // Handle Booking submission
-  const handleSubmitBooking = async (e: React.FormEvent) => {
+  const handleSubmitBooking = async (e) => {
     e.preventDefault();
     if (!business || !selectedService || !selectedSlot) return;
 
@@ -183,13 +166,12 @@ export default function BookingPage() {
 
     const providerToUse = selectedProvider || providers[0];
     if (!providerToUse) {
-      setSubmitError('No provider available for this booking.');
+      setSubmitError('No specialist available for this booking.');
       setIsSubmitting(false);
       return;
     }
 
     try {
-      // 1. Primary: Call Supabase RPC create_booking
       const { data: bookingId, error: rpcError } = await supabase.rpc('create_booking', {
         p_business: business.id,
         p_service: selectedService.id,
@@ -203,7 +185,6 @@ export default function BookingPage() {
       });
 
       if (rpcError) {
-        // Fallback: If anon is restricted on RPC create_booking, try via API
         const fallbackRes = await fetch(`/api/public/businesses/${business.slug}/bookings`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -237,7 +218,7 @@ export default function BookingPage() {
           providerName: providerToUse.name,
         });
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Booking submission failed:', err);
       setSubmitError(err.message || 'Could not complete your booking. Please try another slot.');
     } finally {
@@ -245,12 +226,13 @@ export default function BookingPage() {
     }
   };
 
-  const formatPrice = (cents: number) => {
-    const rupees = Math.round(cents / 100);
+  // Indian Rupee currency format
+  const formatPrice = (cents) => {
+    const rupees = Math.round((cents || 0) / 100);
     return `₹${rupees.toLocaleString('en-IN')}`;
   };
 
-  const formatSlotTime = (iso: string) => {
+  const formatSlotTime = (iso) => {
     return new Date(iso).toLocaleTimeString([], {
       hour: 'numeric',
       minute: '2-digit',
@@ -264,7 +246,7 @@ export default function BookingPage() {
         <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 text-center max-w-sm w-full">
           <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <h2 className="text-lg font-semibold text-slate-800">Loading booking page...</h2>
-          <p className="text-sm text-slate-500 mt-1">Preparing available slots and services</p>
+          <p className="text-sm text-slate-500 mt-1">Checking available dates and slots</p>
         </div>
       </div>
     );
@@ -300,14 +282,14 @@ export default function BookingPage() {
           </div>
 
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 uppercase tracking-wide">
-            <ShieldCheck className="w-3.5 h-3.5" /> Booking Confirmed
+            <ShieldCheck className="w-3.5 h-3.5" /> Appointment Confirmed
           </span>
 
           <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-4">
             You're all booked!
           </h2>
           <p className="text-slate-600 mt-2 text-sm">
-            We've sent the appointment details to{' '}
+            We've sent the appointment confirmation to{' '}
             <span className="font-semibold text-slate-800">{clientInfo.email || clientInfo.phone}</span>
           </p>
 
@@ -337,7 +319,7 @@ export default function BookingPage() {
                 </p>
               </div>
               <div>
-                <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Provider</span>
+                <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Specialist</span>
                 <p className="font-medium text-slate-800 text-sm mt-0.5">{bookingSuccess.providerName}</p>
                 <p className="text-xs text-slate-500 font-medium">{business.name}</p>
               </div>
@@ -432,7 +414,6 @@ export default function BookingPage() {
                   key={step.id}
                   className="flex flex-col items-center relative z-10 cursor-pointer group"
                   onClick={() => {
-                    // Allow jumping back to previously completed steps
                     if (isCompleted) setCurrentStep(step.id);
                   }}
                 >
@@ -467,7 +448,7 @@ export default function BookingPage() {
             <div>
               <div className="mb-6">
                 <h2 className="text-xl font-bold text-slate-900">1. Select a Service</h2>
-                <p className="text-sm text-slate-500 mt-1">Choose the service you'd like to book today.</p>
+                <p className="text-sm text-slate-500 mt-1">Choose the service you would like to book today.</p>
               </div>
 
               {services.length === 0 ? (
@@ -522,7 +503,7 @@ export default function BookingPage() {
                   onClick={() => setCurrentStep(2)}
                   className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium rounded-xl shadow-sm transition flex items-center gap-2 text-sm"
                 >
-                  Next: Select Provider <ChevronRight className="w-4 h-4" />
+                  Next: Select Specialist <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -532,7 +513,7 @@ export default function BookingPage() {
           {currentStep === 2 && (
             <div>
               <div className="mb-6">
-                <h2 className="text-xl font-bold text-slate-900">2. Choose a Provider</h2>
+                <h2 className="text-xl font-bold text-slate-900">2. Choose a Specialist</h2>
                 <p className="text-sm text-slate-500 mt-1">Select your preferred specialist or staff member.</p>
               </div>
 
@@ -551,7 +532,7 @@ export default function BookingPage() {
                     <Sparkles className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-slate-900 text-sm">Any Available Provider</h3>
+                    <h3 className="font-semibold text-slate-900 text-sm">Any Available Specialist</h3>
                     <p className="text-xs text-slate-500 mt-0.5">Fastest availability matching your time</p>
                   </div>
                 </div>
@@ -575,7 +556,7 @@ export default function BookingPage() {
                       </div>
                       <div>
                         <h3 className="font-semibold text-slate-900 text-sm">{p.name}</h3>
-                        <p className="text-xs text-emerald-600 font-medium mt-0.5">Available for booking</p>
+                        <p className="text-xs text-emerald-600 font-medium mt-0.5">Available for appointment</p>
                       </div>
                     </div>
                   );
@@ -611,7 +592,6 @@ export default function BookingPage() {
                 </p>
               </div>
 
-              {/* Date Input */}
               <div className="mb-6">
                 <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
                   Select Date
@@ -630,10 +610,9 @@ export default function BookingPage() {
                 </div>
               </div>
 
-              {/* Slots Grid */}
               <div>
                 <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-3">
-                  Available 30-Minute Slots ({availableSlots.length})
+                  Available Slots ({availableSlots.length})
                 </label>
 
                 {availableSlots.length === 0 ? (
@@ -690,7 +669,7 @@ export default function BookingPage() {
             <div>
               <div className="mb-6">
                 <h2 className="text-xl font-bold text-slate-900">4. Enter Your Information</h2>
-                <p className="text-sm text-slate-500 mt-1">Provide contact details for booking confirmation and reminders.</p>
+                <p className="text-sm text-slate-500 mt-1">Provide your details to receive appointment confirmations.</p>
               </div>
 
               {submitError && (
@@ -735,7 +714,7 @@ export default function BookingPage() {
                     <input
                       required
                       type="text"
-                      placeholder="e.g. Alex Morgan"
+                      placeholder="e.g. Rahul Sharma"
                       value={clientInfo.name}
                       onChange={(e) => setClientInfo({ ...clientInfo, name: e.target.value })}
                       className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 text-sm font-medium"
@@ -752,7 +731,7 @@ export default function BookingPage() {
                       <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                       <input
                         type="email"
-                        placeholder="alex@example.com"
+                        placeholder="rahul@example.com"
                         value={clientInfo.email}
                         onChange={(e) => setClientInfo({ ...clientInfo, email: e.target.value })}
                         className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 text-sm font-medium"
@@ -768,7 +747,7 @@ export default function BookingPage() {
                       <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                       <input
                         type="tel"
-                        placeholder="+1 (555) 000-0000"
+                        placeholder="+91 98765 43210"
                         value={clientInfo.phone}
                         onChange={(e) => setClientInfo({ ...clientInfo, phone: e.target.value })}
                         className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 text-sm font-medium"
@@ -791,7 +770,7 @@ export default function BookingPage() {
                 </div>
 
                 <p className="text-xs text-slate-400 italic">
-                  * At least one contact method (email or phone) is required to receive appointment confirmation.
+                  * Provide either email or phone to receive appointment confirmations and reminders.
                 </p>
 
                 <div className="mt-8 pt-4 flex justify-between items-center border-t border-slate-100">

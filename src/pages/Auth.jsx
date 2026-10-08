@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
 import {
   Calendar,
   Lock,
@@ -18,11 +18,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 
-interface AuthProps {
-  initialMode?: 'login' | 'signup';
-}
-
-export default function Auth({ initialMode }: AuthProps) {
+export default function Auth({ initialMode }) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -42,16 +38,16 @@ export default function Auth({ initialMode }: AuthProps) {
   const [slug, setSlug] = useState('');
   const [timezone, setTimezone] = useState(() => {
     try {
-      return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata';
     } catch {
-      return 'UTC';
+      return 'Asia/Kolkata';
     }
   });
 
   // Status & Feedback
   const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [successInfo, setSuccessInfo] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState(null);
+  const [successInfo, setSuccessInfo] = useState(null);
   const [showConfigHelper, setShowConfigHelper] = useState(!isSupabaseConfigured);
 
   useEffect(() => {
@@ -71,7 +67,7 @@ export default function Auth({ initialMode }: AuthProps) {
   }, [location.pathname, navigate]);
 
   // Auto-slug generator from business name
-  const handleBusinessNameChange = (val: string) => {
+  const handleBusinessNameChange = (val) => {
     setBusinessName(val);
     const generatedSlug = val
       .toLowerCase()
@@ -82,7 +78,7 @@ export default function Auth({ initialMode }: AuthProps) {
     setSlug(generatedSlug);
   };
 
-  const handleSlugChange = (val: string) => {
+  const handleSlugChange = (val) => {
     const cleaned = val
       .toLowerCase()
       .replace(/[^a-z0-9-]/g, '')
@@ -91,13 +87,12 @@ export default function Auth({ initialMode }: AuthProps) {
     setSlug(cleaned);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg(null);
     setSuccessInfo(null);
     setLoading(true);
 
-    // Friendly validation check for credentials
     if (!isSupabaseConfigured) {
       setErrorMsg(
         'Supabase is not configured yet. Please open the `.env` file in the project and set valid `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` values from your Supabase project dashboard.'
@@ -109,7 +104,6 @@ export default function Auth({ initialMode }: AuthProps) {
 
     try {
       if (isSignUp) {
-        // Validation for signup fields
         if (!businessName.trim()) {
           throw new Error('Please enter your business name.');
         }
@@ -162,14 +156,12 @@ export default function Auth({ initialMode }: AuthProps) {
 
           if (!apiRes.ok) {
             const apiJson = await apiRes.json().catch(() => ({}));
-            // If already has business, we can still proceed
             if (rpcError.message !== 'already_has_business') {
               throw new Error(apiJson.error?.message || rpcError.message);
             }
           }
         }
 
-        // Successful signup & business creation -> Redirect to dashboard
         navigate('/dashboard');
       } else {
         // Login flow
@@ -184,14 +176,13 @@ export default function Auth({ initialMode }: AuthProps) {
           navigate('/dashboard');
         }
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Auth action failed:', err);
       let message = err.message || 'An unexpected authentication error occurred.';
 
-      // Catch and diagnose "Failed to fetch"
       if (message.toLowerCase().includes('failed to fetch')) {
         message =
-          'Network Connection Error ("Failed to fetch"): The browser could not connect to Supabase. This usually means `VITE_SUPABASE_URL` in `.env` is either unreachable, invalid, or using the placeholder `your-project.supabase.co`. Please verify your Supabase project URL and anon key.';
+          'Network Connection Error ("Failed to fetch"): The browser could not connect to Supabase. This usually means `VITE_SUPABASE_URL` in `.env` is either unreachable, invalid, or using placeholder keys.';
         setShowConfigHelper(true);
       }
 
@@ -214,11 +205,11 @@ export default function Auth({ initialMode }: AuthProps) {
           </span>
         </Link>
         <h2 className="mt-4 text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-          {isSignUp ? 'Launch your booking platform' : 'Welcome back'}
+          {isSignUp ? 'Start taking appointments' : 'Welcome back'}
         </h2>
         <p className="mt-2 text-sm text-slate-600">
           {isSignUp
-            ? 'Set up your business and start taking bookings in seconds.'
+            ? 'Set up your business and accept client bookings in minutes.'
             : 'Sign in to access your appointments and business dashboard.'}
         </p>
       </div>
@@ -306,7 +297,7 @@ export default function Auth({ initialMode }: AuthProps) {
                     <input
                       required={isSignUp}
                       type="text"
-                      placeholder="e.g. Skyline Dental or Aura Spa"
+                      placeholder="e.g. Skyline Salon or Apex Dental"
                       value={businessName}
                       onChange={(e) => handleBusinessNameChange(e.target.value)}
                       className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 text-sm font-medium"
@@ -325,7 +316,7 @@ export default function Auth({ initialMode }: AuthProps) {
                     <input
                       required={isSignUp}
                       type="text"
-                      placeholder="skyline-dental"
+                      placeholder="skyline-salon"
                       value={slug}
                       onChange={(e) => handleSlugChange(e.target.value)}
                       className="w-full px-3 py-2.5 focus:outline-none text-slate-800 text-sm font-medium"
@@ -343,7 +334,7 @@ export default function Auth({ initialMode }: AuthProps) {
                     <input
                       required={isSignUp}
                       type="text"
-                      placeholder="UTC or America/New_York"
+                      placeholder="Asia/Kolkata"
                       value={timezone}
                       onChange={(e) => setTimezone(e.target.value)}
                       className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 text-sm font-medium"

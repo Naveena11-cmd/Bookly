@@ -59,7 +59,7 @@ function LandingPage() {
         </h1>
 
         <p className="mt-6 text-base sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
-           Let clients book appointments 24/7 while you manage schedules, services, and staff all in one place
+          Let clients book appointments 24/7 while you manage schedules, services, and staff all in one place
         </p>
 
         <div className="mt-8 sm:mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">

@@ -1,14 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import {
-  supabase,
-  isSupabaseConfigured,
-  Business,
-  Service,
-  Booking,
-  ClientStat,
-  DashboardSummary,
-} from '../../lib/supabase';
+import { supabase } from '../../lib/supabase.js';
 import {
   LayoutDashboard,
   CalendarDays,
@@ -41,15 +33,7 @@ import {
   Phone,
   Briefcase,
   Layers,
-  IndianRupee,
 } from 'lucide-react';
-
-interface BusinessExtraMeta {
-  location: string;
-  category: string;
-  teamSize: string;
-  appointmentMode: string;
-}
 
 const BUSINESS_CATEGORIES = [
   'Salon & Beauty Parlour',
@@ -74,12 +58,12 @@ export default function Dashboard() {
   const navigate = useNavigate();
 
   // Navigation tab
-  const [activeTab, setActiveTab] = useState<'overview' | 'calendar' | 'services' | 'clients'>('overview');
+  const [activeTab, setActiveTab] = useState('overview');
 
   // Core user & business state
-  const [user, setUser] = useState<any>(null);
-  const [business, setBusiness] = useState<Business | null>(null);
-  const [businessMeta, setBusinessMeta] = useState<BusinessExtraMeta>({
+  const [user, setUser] = useState(null);
+  const [business, setBusiness] = useState(null);
+  const [businessMeta, setBusinessMeta] = useState({
     location: '',
     category: '',
     teamSize: 'Solo Specialist (Just Me)',
@@ -90,7 +74,6 @@ export default function Dashboard() {
 
   // Onboarding state if user has no business yet
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
-  const [onboardingStep, setOnboardingStep] = useState(1);
   const [onboardingForm, setOnboardingForm] = useState({
     name: '',
     slug: '',
@@ -108,50 +91,48 @@ export default function Dashboard() {
     },
   });
   const [onboardingLoading, setOnboardingLoading] = useState(false);
-  const [onboardingError, setOnboardingError] = useState<string | null>(null);
+  const [onboardingError, setOnboardingError] = useState(null);
 
   // Tab 1: Overview stats
-  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [summary, setSummary] = useState(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
 
   // Tab 2: Calendar / Bookings
-  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookings, setBookings] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
-  const [bookingFilter, setBookingFilter] = useState<'all' | 'confirmed' | 'completed' | 'cancelled'>('all');
+  const [bookingFilter, setBookingFilter] = useState('all');
 
   // Tab 3: Services
-  const [services, setServices] = useState<Service[]>([]);
+  const [services, setServices] = useState([]);
   const [loadingServices, setLoadingServices] = useState(false);
-  const [editingService, setEditingService] = useState<Partial<Service> | null>(null);
+  const [editingService, setEditingService] = useState(null);
   const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
 
   // Tab 4: Clients
-  const [clients, setClients] = useState<ClientStat[]>([]);
+  const [clients, setClients] = useState([]);
   const [loadingClients, setLoadingClients] = useState(false);
   const [searchClient, setSearchClient] = useState('');
 
   // Notifications
-  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [feedback, setFeedback] = useState(null);
 
-  const showToast = (type: 'success' | 'error', message: string) => {
+  const showToast = (type, message) => {
     setFeedback({ type, message });
     setTimeout(() => setFeedback(null), 4000);
   };
 
-  // Helper to load persistent extra metadata (location, category, etc.)
-  const loadBusinessMeta = (bizId: string) => {
+  const loadBusinessMeta = (bizId) => {
     try {
       const saved = localStorage.getItem(`bookly_meta_${bizId}`);
       if (saved) {
         setBusinessMeta(JSON.parse(saved));
       }
     } catch {
-      // fallback to defaults
+      // fallback
     }
   };
 
-  // Helper to save extra metadata
-  const saveBusinessMeta = (bizId: string, meta: BusinessExtraMeta) => {
+  const saveBusinessMeta = (bizId, meta) => {
     try {
       localStorage.setItem(`bookly_meta_${bizId}`, JSON.stringify(meta));
       setBusinessMeta(meta);
@@ -160,10 +141,8 @@ export default function Dashboard() {
     }
   };
 
-  // Helper to fetch the business linked to the current user
-  const fetchUserBusiness = async (userId: string, token?: string): Promise<Business | null> => {
+  const fetchUserBusiness = async (userId, token) => {
     try {
-      // 1. Direct owner lookup
       const { data: b1 } = await supabase
         .from('businesses')
         .select('*')
@@ -172,7 +151,6 @@ export default function Dashboard() {
 
       if (b1) return b1;
 
-      // 2. Query via business_members table
       const { data: mem } = await supabase
         .from('business_members')
         .select('business_id')
@@ -188,7 +166,6 @@ export default function Dashboard() {
         if (b2) return b2;
       }
 
-      // 3. Fallback: Query any business accessible under RLS
       const { data: b3 } = await supabase
         .from('businesses')
         .select('*')
@@ -197,7 +174,6 @@ export default function Dashboard() {
 
       if (b3) return b3;
 
-      // 4. API fallback if server is running
       if (token) {
         const apiMe = await fetch('/api/me', {
           headers: { Authorization: `Bearer ${token}` },
@@ -211,7 +187,6 @@ export default function Dashboard() {
     return null;
   };
 
-  // Check auth session and fetch current business
   useEffect(() => {
     async function initAuth() {
       setLoading(true);
@@ -233,7 +208,7 @@ export default function Dashboard() {
         } else {
           setNeedsOnboarding(true);
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error('Failed to initialize dashboard:', err);
       } finally {
         setLoading(false);
@@ -243,15 +218,14 @@ export default function Dashboard() {
     initAuth();
   }, [navigate]);
 
-  // Handle Onboarding submission with all business questions
-  const handleCreateBusiness = async (e: React.FormEvent) => {
+  const handleCreateBusiness = async (e) => {
     e.preventDefault();
     if (!onboardingForm.name.trim() || !onboardingForm.slug.trim()) {
       setOnboardingError('Please enter a business name and booking URL slug.');
       return;
     }
     if (!onboardingForm.location.trim()) {
-      setOnboardingError('Please specify your business location (city or area).');
+      setOnboardingError('Please enter your business location (city or area).');
       return;
     }
 
@@ -261,7 +235,6 @@ export default function Dashboard() {
     const timezoneStr = typeof onboardingForm.timezone === 'function' ? onboardingForm.timezone() : onboardingForm.timezone;
 
     try {
-      // 1. Call RPC create_business
       const { data: rpcRes, error: rpcErr } = await supabase.rpc('create_business', {
         p_name: onboardingForm.name.trim(),
         p_slug: onboardingForm.slug.trim().toLowerCase(),
@@ -269,7 +242,6 @@ export default function Dashboard() {
       });
 
       if (rpcErr && rpcErr.message !== 'already_has_business') {
-        // Fallback: Try API onboarding endpoint
         const session = (await supabase.auth.getSession()).data.session;
         const apiRes = await fetch('/api/onboarding', {
           method: 'POST',
@@ -290,16 +262,14 @@ export default function Dashboard() {
         }
       }
 
-      // Re-fetch business
       const { data: { session } } = await supabase.auth.getSession();
-      let createdBiz: Business | null = null;
+      let createdBiz = null;
       if (session) {
         createdBiz = await fetchUserBusiness(session.user.id, session.access_token);
       }
 
       const resolvedBizId = createdBiz?.id || (typeof rpcRes === 'string' ? rpcRes : 'new-business');
 
-      // Update phone on business table if provided
       if (onboardingForm.phone.trim() && resolvedBizId) {
         await supabase
           .from('businesses')
@@ -308,8 +278,7 @@ export default function Dashboard() {
           .catch(() => {});
       }
 
-      // Persist extra business answers
-      const metaToSave: BusinessExtraMeta = {
+      const metaToSave = {
         location: onboardingForm.location.trim(),
         category: onboardingForm.category,
         teamSize: onboardingForm.teamSize,
@@ -320,7 +289,7 @@ export default function Dashboard() {
       if (createdBiz) {
         setBusiness(createdBiz);
       } else {
-        const optimisticBiz: Business = {
+        const optimisticBiz = {
           id: resolvedBizId,
           owner_user_id: user?.id || '',
           name: onboardingForm.name.trim(),
@@ -334,8 +303,8 @@ export default function Dashboard() {
       }
 
       setNeedsOnboarding(false);
-      showToast('success', `Business setup complete! Welcome to Bookly.`);
-    } catch (err: any) {
+      showToast('success', 'Business setup complete! Welcome to Bookly.');
+    } catch (err) {
       console.error('Onboarding failed:', err);
       setOnboardingError(err.message || 'Failed to setup business. Please check details and try again.');
     } finally {
@@ -343,15 +312,13 @@ export default function Dashboard() {
     }
   };
 
-  // Load Tab 1: Overview Summary
-  const loadSummary = useCallback(async (bid: string) => {
+  const loadSummary = useCallback(async (bid) => {
     setLoadingSummary(true);
     try {
       const now = new Date();
       const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
       const dayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
 
-      // Query RPC dashboard_summary
       const { data, error } = await supabase.rpc('dashboard_summary', {
         p_business: bid,
         p_day_start: dayStart,
@@ -359,9 +326,8 @@ export default function Dashboard() {
       });
 
       if (!error && data) {
-        setSummary(data as DashboardSummary);
+        setSummary(data);
       } else {
-        // Fallback: Fetch from API or aggregate client-side
         const session = (await supabase.auth.getSession()).data.session;
         const fallbackRes = await fetch('/api/dashboard/summary', {
           headers: {
@@ -372,7 +338,6 @@ export default function Dashboard() {
         if (fallbackRes.data) {
           setSummary(fallbackRes.data);
         } else {
-          // Direct aggregate calculation
           const [bookingsRes, clientsRes] = await Promise.all([
             supabase.from('bookings').select('price_cents,status,starts_at').eq('business_id', bid),
             supabase.from('clients').select('id', { count: 'exact' }).eq('business_id', bid),
@@ -409,8 +374,7 @@ export default function Dashboard() {
     }
   }, []);
 
-  // Load Tab 2: Bookings for Calendar
-  const loadBookings = useCallback(async (bid: string) => {
+  const loadBookings = useCallback(async (bid) => {
     setLoadingBookings(true);
     try {
       const { data, error } = await supabase
@@ -435,7 +399,7 @@ export default function Dashboard() {
         .order('starts_at', { ascending: false });
 
       if (!error && data) {
-        setBookings(data as any);
+        setBookings(data);
       } else {
         const session = (await supabase.auth.getSession()).data.session;
         const res = await fetch(`/api/bookings?from=${new Date(Date.now() - 30 * 864e5).toISOString()}&to=${new Date(Date.now() + 60 * 864e5).toISOString()}`, {
@@ -455,8 +419,7 @@ export default function Dashboard() {
     }
   }, []);
 
-  // Load Tab 3: Services
-  const loadServices = useCallback(async (bid: string) => {
+  const loadServices = useCallback(async (bid) => {
     setLoadingServices(true);
     try {
       const { data, error } = await supabase
@@ -475,8 +438,7 @@ export default function Dashboard() {
     }
   }, []);
 
-  // Load Tab 4: Clients from client_stats view
-  const loadClients = useCallback(async (bid: string) => {
+  const loadClients = useCallback(async (bid) => {
     setLoadingClients(true);
     try {
       const { data, error } = await supabase
@@ -515,11 +477,7 @@ export default function Dashboard() {
     if (activeTab === 'clients') loadClients(business.id);
   }, [business, activeTab, loadSummary, loadBookings, loadServices, loadClients]);
 
-  // Update Booking Status
-  const handleUpdateStatus = async (
-    bookingId: string,
-    newStatus: 'confirmed' | 'completed' | 'cancelled' | 'no_show'
-  ) => {
+  const handleUpdateStatus = async (bookingId, newStatus) => {
     if (!business) return;
 
     try {
@@ -548,14 +506,13 @@ export default function Dashboard() {
       );
       showToast('success', `Appointment status updated to "${newStatus}".`);
       loadSummary(business.id);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Status update failed:', err);
       showToast('error', err.message || 'Failed to change appointment status.');
     }
   };
 
-  // Save Service in Indian Rupees
-  const handleSaveService = async (e: React.FormEvent) => {
+  const handleSaveService = async (e) => {
     e.preventDefault();
     if (!business || !editingService) return;
 
@@ -599,13 +556,13 @@ export default function Dashboard() {
       setIsServiceModalOpen(false);
       setEditingService(null);
       loadServices(business.id);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Service save failed:', err);
       showToast('error', err.message || 'Could not save service.');
     }
   };
 
-  const handleToggleServiceActive = async (service: Service) => {
+  const handleToggleServiceActive = async (service) => {
     if (!business) return;
     try {
       const { error } = await supabase
@@ -620,7 +577,7 @@ export default function Dashboard() {
         prev.map((s) => (s.id === service.id ? { ...s, active: !s.active } : s))
       );
       showToast('success', `Service ${service.active ? 'disabled' : 'enabled'}.`);
-    } catch (err: any) {
+    } catch (err) {
       showToast('error', err.message || 'Failed to update service status');
     }
   };
@@ -638,8 +595,7 @@ export default function Dashboard() {
     setTimeout(() => setCopiedLink(false), 2500);
   };
 
-  // Indian Rupee (₹) Currency Formatter
-  const formatRupees = (cents: number = 0) => {
+  const formatRupees = (cents = 0) => {
     const rupees = Math.round(cents / 100);
     return `₹${rupees.toLocaleString('en-IN')}`;
   };
@@ -681,7 +637,6 @@ export default function Dashboard() {
             )}
 
             <form onSubmit={handleCreateBusiness} className="space-y-4">
-              {/* Question 1: Business Name */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                   1. Business Name *
@@ -708,7 +663,6 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Question 2: Public Booking Slug */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                   2. Booking Link URL *
@@ -733,7 +687,6 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Question 3: Business Location */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                   3. Business Location / City *
@@ -752,7 +705,6 @@ export default function Dashboard() {
                 <p className="text-[11px] text-slate-400 mt-1">Displayed on your booking page so clients know where to visit.</p>
               </div>
 
-              {/* Question 4: Category / Industry */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                   4. Business Category
@@ -773,7 +725,6 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Question 5: Contact Phone / WhatsApp */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                   5. Contact Phone / WhatsApp
@@ -790,7 +741,6 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Question 6: Team Size */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                   6. Team Size / Specialists
@@ -994,7 +944,6 @@ export default function Dashboard() {
         {/* TAB 1: OVERVIEW */}
         {activeTab === 'overview' && (
           <div className="space-y-8">
-            {/* Top Bar with Live Link and Location info */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200">
               <div>
                 <h1 className="text-2xl font-black text-slate-900 tracking-tight">Business Overview</h1>
@@ -1125,7 +1074,7 @@ export default function Dashboard() {
 
               {/* Status Filter Tabs */}
               <div className="flex p-1 bg-white border border-slate-200 rounded-xl">
-                {(['all', 'confirmed', 'completed', 'cancelled'] as const).map((f) => (
+                {['all', 'confirmed', 'completed', 'cancelled'].map((f) => (
                   <button
                     key={f}
                     onClick={() => setBookingFilter(f)}
@@ -1150,7 +1099,7 @@ export default function Dashboard() {
                 {bookings
                   .filter((b) => (bookingFilter === 'all' ? true : b.status === bookingFilter))
                   .map((b) => {
-                    const statusColors: Record<string, string> = {
+                    const statusColors = {
                       confirmed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
                       completed: 'bg-indigo-50 text-indigo-700 border-indigo-200',
                       cancelled: 'bg-rose-50 text-rose-700 border-rose-200',
@@ -1261,7 +1210,7 @@ export default function Dashboard() {
                     name: '',
                     description: '',
                     duration_minutes: 30,
-                    price_cents: 50000, // ₹500 default
+                    price_cents: 50000,
                     active: true,
                   });
                   setIsServiceModalOpen(true);
