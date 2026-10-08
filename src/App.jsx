@@ -51,15 +51,15 @@ function LandingPage() {
       {/* Hero Section */}
       <main className="max-w-5xl mx-auto px-4 py-16 sm:py-24 text-center my-auto">
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs font-semibold mb-6 shadow-xs">
-          <Sparkles className="w-3.5 h-3.5" /> Complete SaaS Appointment Architecture
+          <Sparkles className="w-3.5 h-3.5" /> Effortless appointment scheduling for your business.
         </div>
 
         <h1 className="text-4xl sm:text-6xl font-black text-slate-900 tracking-tight leading-tight max-w-3xl mx-auto">
-          Delightful booking pages for modern businesses.
+          Smart scheduling, simplified.
         </h1>
 
         <p className="mt-6 text-base sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
-          Bookly pairs an aesthetic client booking wizard with an all-in-one business dashboard, real-time calendars, and automated client analytics.
+           Let clients book appointments 24/7 while you manage schedules, services, and staff all in one place
         </p>
 
         <div className="mt-8 sm:mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
