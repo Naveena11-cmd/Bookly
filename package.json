@@ -7,8 +7,9 @@
     "node": ">=20.6"
   },
   "scripts": {
-    "dev": "concurrently -k \"node --env-file=.env server/dev.js\" \"vite\"",
+    "dev": "vite",
     "build": "vite build",
+    "preview":"vite preview",
     "test": "vitest run",
     "test:rls": "node --env-file=.env scripts/rls-test.mjs",
     "test:race": "node --env-file=.env scripts/race-test.mjs",
